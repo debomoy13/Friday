@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friday — Personal OS Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="hud-container">
+        <!-- HEADER -->
+        <header class="hud-header">
+            <div class="system-title">
+                <span class="logo-orb"></span>
+                <h1>FRIDAY <span class="sub-version">v2.5</span></h1>
+            </div>
+            <div class="header-status">
+                <div class="status-indicator" id="connection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">OFFLINE</span>
+                </div>
+                <button id="settings-toggle" class="btn-icon" title="System Settings">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="hud-main">
+            <!-- LEFT PANEL: Conversation and Chat -->
+            <section class="panel panel-chat glass">
+                <div class="panel-header">
+                    <h2>CONVERSATION LOG</h2>
+                    <span class="panel-subtitle" id="speech-mode-label">SPEECH STANDBY</span>
+                </div>
+                <div class="chat-log" id="chat-messages">
+                    <div class="message assistant">
+                        <div class="msg-bubble">
+                            Good day, Sir. Friday system online. I'm ready to assist you.
+                        </div>
+                    </div>
+                </div>
+                <!-- Dynamic progress overlay -->
+                <div class="action-progress-container" id="action-progress" style="display: none;">
+                    <div class="scanner-line"></div>
+                    <span id="action-progress-text">Executing command...</span>
+                </div>
+            </section>
+
+            <!-- CENTER PANEL: Holographic Visualizer Orb -->
+            <section class="panel-center">
+                <div class="core-orb-container">
+                    <div class="hologram-ring outer"></div>
+                    <div class="hologram-ring middle"></div>
+                    <div class="hologram-ring inner"></div>
+                    <div class="core-orb-pulse" id="friday-orb">
+                        <div class="orb-inner"></div>
+                    </div>
+                    <canvas id="waveform-canvas"></canvas>
+                </div>
+                <div class="assistant-speech-bubble" id="spoken-text" style="display: none;">
+                    "Listening..."
+                </div>
+            </section>
+
+            <!-- RIGHT PANEL: Diagnostics and Feeds -->
+            <section class="panel panel-diagnostics glass">
+                <div class="panel-header">
+                    <h2>DIAGNOSTICS</h2>
+                    <span class="panel-subtitle">SYSTEM STATUS</span>
+                </div>
+                
+                <!-- Performance Gauges -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">CPU</div>
+                        <div class="stat-progress">
+                            <div class="progress-bar" id="cpu-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="stat-value" id="cpu-val">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">MEMORY</div>
+                        <div class="stat-progress">
+                            <div class="progress-bar" id="mem-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="stat-value" id="mem-val">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">BATTERY</div>
+                        <div class="stat-progress">
+                            <div class="progress-bar" id="bat-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="stat-value" id="bat-val">--%</div>
+                    </div>
+                </div>
+
+                <!-- Webcam Feed -->
+                <div class="vision-container">
+                    <div class="panel-header-sub">VISION SYSTEM</div>
+                    <div class="webcam-viewport">
+                        <video id="webcam-video" autoplay playsinline muted></video>
+                        <canvas id="webcam-capture-canvas" style="display: none;"></canvas>
+                        <div class="video-overlay">
+                            <div class="scan-grid"></div>
+                            <span class="camera-label" id="camera-label">WEBCAM: LOCKED</span>
+                        </div>
+                    </div>
+                    <div class="vision-actions">
+                        <button id="toggle-camera" class="btn btn-secondary">ACTIVATE WEBCAM</button>
+                        <button id="trigger-screenshot" class="btn btn-secondary">CAPTURE SCREEN</button>
+                    </div>
+                </div>
+
+                <!-- System Logs Console -->
+                <div class="console-container">
+                    <div class="panel-header-sub">AUDIT TRAIL LOG</div>
+                    <div class="console-box" id="system-logs">
+                        <div class="log-line info">[System] Startup sequencing complete.</div>
+                        <div class="log-line info">[Safety] Core policy loaded: Medium Authorization mode.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- FOOTER COMMAND INPUT -->
+        <footer class="hud-footer glass">
+            <div class="input-container">
+                <button id="voice-trigger-btn" class="btn-voice" title="Push to Talk / Hold to listen">
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="mic-icon"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></button>
+                </button>
+                <input type="text" id="command-input" placeholder="Initiate verbal command or enter text input..." autocomplete="off">
+                <button id="send-btn" class="btn btn-primary">SEND COMMAND</button>
+            </div>
+            
+            <!-- Quick Scheduler Toolbar -->
+            <div class="scheduler-toolbar">
+                <span>Quick Reminder:</span>
+                <input type="text" id="reminder-title" placeholder="Remind me to take a break..." value="">
+                <select id="reminder-delay">
+                    <option value="10">10 seconds</option>
+                    <option value="60">1 minute</option>
+                    <option value="300">5 minutes</option>
+                    <option value="900">15 minutes</option>
+                    <option value="1800">30 minutes</option>
+                </select>
+                <button id="add-reminder-btn" class="btn btn-small">SET REMINDER</button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- SETTINGS PANEL MODAL -->
+    <div class="modal-overlay" id="settings-modal" style="display: none;">
+        <div class="modal-card glass">
+            <div class="modal-header">
+                <h2>SYSTEM PREFERENCES</h2>
+                <button class="modal-close" id="settings-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="settings-api-key">Gemini API Key</label>
+                    <input type="password" id="settings-api-key" placeholder="Enter GEMINI_API_KEY">
+                    <p class="help-text">Obtain a free key from Google AI Studio. Stored locally.</p>
+                </div>
+                <div class="form-group">
+                    <label for="settings-user-name">User Name (Friday addresses you as)</label>
+                    <input type="text" id="settings-user-name" placeholder="Sir / Boss / Your Name">
+                </div>
+                <div class="form-group">
+                    <label for="settings-assistant-name">Assistant Name</label>
+                    <input type="text" id="settings-assistant-name" placeholder="Friday / Jarvis">
+                </div>
+                <div class="form-group">
+                    <label for="settings-safety-level">Safety Clearance Policy</label>
+                    <select id="settings-safety-level">
+                        <option value="low">Low (No execution constraints)</option>
+                        <option value="medium">Medium (Requires confirmation for dangerous files/shell execution)</option>
+                        <option value="high">High (Prompt confirmation for read/write/scripts)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-settings-btn" class="btn btn-primary">APPLY CONFIGURATION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAFETY PERMISSIONS OVERLAY -->
+    <div class="modal-overlay danger" id="safety-modal" style="display: none;">
+        <div class="modal-card safety glass">
+            <div class="safety-alert-header">
+                <div class="safety-shield">
+                    <svg viewBox="0 0 24 24" width="36" height="36" stroke="#ff3e3e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
+                <h2>AUTHORIZATION REQUIRED</h2>
+            </div>
+            <div class="safety-alert-body">
+                <p class="warning-text">Friday has requested permission to execute a privileged task.</p>
+                <div class="tool-details-card">
+                    <div class="detail-row">
+                        <span class="detail-label">ACTION:</span>
+                        <span class="detail-value highlighted" id="safety-tool-name">execute_terminal_command</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">PARAMETERS:</span>
+                        <pre class="detail-value code-block" id="safety-tool-args">{}</pre>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">RISK LEVEL:</span>
+                        <span class="detail-value risk-badge" id="safety-risk-level">HIGH RISK</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="safety-deny-btn" class="btn btn-danger-secondary">DENY / CANCEL</button>
+                <button id="safety-approve-btn" class="btn btn-danger-primary">AUTHORIZE EXECUTION</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
