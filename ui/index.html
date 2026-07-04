@@ -181,6 +181,19 @@
                     <p class="help-text">Obtain a free key from Google AI Studio. Stored locally.</p>
                 </div>
                 <div class="form-group">
+                    <label for="settings-provider">LLM Provider</label>
+                    <select id="settings-provider">
+                        <option value="gemini">Google Gemini (Cloud)</option>
+                        <option value="ollama">Ollama (Local / Offline)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="ollama-settings-group" style="display: none;">
+                    <label for="settings-ollama-url">Ollama API URL</label>
+                    <input type="text" id="settings-ollama-url" placeholder="http://127.0.0.1:11434">
+                    <label for="settings-ollama-model" style="margin-top: 5px;">Ollama Model Name</label>
+                    <input type="text" id="settings-ollama-model" placeholder="qwen3.6">
+                </div>
+                <div class="form-group">
                     <label for="settings-user-name">User Name (Friday addresses you as)</label>
                     <input type="text" id="settings-user-name" placeholder="Sir / Boss / Your Name">
                 </div>

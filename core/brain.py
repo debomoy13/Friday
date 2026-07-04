@@ -1,19 +1,41 @@
 import os
+import json
+import base64
+import httpx
 import google.generativeai as genai
 from PIL import Image
 from typing import Dict, Any, List, Optional, Tuple
 from google.generativeai.types import GenerateContentResponse
 
+def to_gemini_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively converts lowercase schema types (e.g. 'object') to uppercase ('OBJECT') for Gemini SDK compatibility."""
+    if not isinstance(schema, dict):
+        return schema
+    new_schema = {}
+    for k, v in schema.items():
+        if k == "type" and isinstance(v, str):
+            new_schema[k] = v.upper()
+        elif isinstance(v, dict):
+            new_schema[k] = to_gemini_schema(v)
+        elif isinstance(v, list):
+            new_schema[k] = [to_gemini_schema(item) if isinstance(item, dict) else item for item in v]
+        else:
+            new_schema[k] = v
+    return new_schema
+
 class LLMBrain:
     """
-    Interfaces with Google Gemini API to handle conversational intelligence,
-    multimodal understanding (screenshots/webcam), and structured tool calling.
+    Interfaces with Google Gemini API and local Ollama server to handle
+    conversational reasoning, tool calling, and multimodal vision inputs.
     """
-    def __init__(self, api_key: Optional[str] = None, user_name: str = "Sir", assistant_name: str = "Friday"):
+    def __init__(self, api_key: Optional[str] = None, user_name: str = "Sir", assistant_name: str = "Friday", provider: str = "gemini", ollama_url: str = "http://127.0.0.1:11434", ollama_model: str = "qwen3.6"):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.user_name = user_name
         self.assistant_name = assistant_name
         self.model_name = "gemini-1.5-flash" # High speed, vision, and tool calling
+        self.provider = provider
+        self.ollama_url = ollama_url
+        self.ollama_model = ollama_model
         self.is_configured = False
         self._configure_sdk()
 
@@ -28,10 +50,13 @@ class LLMBrain:
         else:
             self.is_configured = False
 
-    def update_config(self, api_key: str, user_name: str, assistant_name: str):
+    def update_config(self, api_key: str, user_name: str, assistant_name: str, provider: str = "gemini", ollama_url: str = "http://127.0.0.1:11434", ollama_model: str = "qwen3.6"):
         """Updates configurations at runtime."""
         self.user_name = user_name
         self.assistant_name = assistant_name
+        self.provider = provider
+        self.ollama_url = ollama_url
+        self.ollama_model = ollama_model
         if api_key != self.api_key:
             self.api_key = api_key
             self._configure_sdk()
@@ -63,11 +88,11 @@ Tool Execution Rules:
         image_path: Optional[str] = None
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """
-        Sends the dialogue, history, tools, and optional image to Gemini.
-        Returns:
-            (reply_text, list_of_tool_calls)
-            list_of_tool_calls: list of dicts like {"name": "tool_name", "args": {...}}
+        Sends the dialogue, history, tools, and optional image to the configured provider (Gemini or Ollama).
         """
+        if self.provider == "ollama":
+            return await self._generate_ollama_response(prompt, history, tool_definitions, image_path)
+
         if not self.is_configured:
             return (
                 f"Boss, I need a valid Gemini API Key to function. Please open the configuration panel in the top right and set your GEMINI_API_KEY, or add it to the .env file in the workspace.",
@@ -75,15 +100,14 @@ Tool Execution Rules:
             )
 
         try:
-            # Map tool schemas to Gemini FunctionDeclarations
+            # Map tool schemas to Gemini FunctionDeclarations (converting types to UPPERCASE)
             gemini_tools = []
             for tool_def in tool_definitions:
                 func = tool_def["function"]
-                # Convert parameter format if required
                 gemini_tools.append({
                     "name": func["name"],
                     "description": func["description"],
-                    "parameters": func["parameters"]
+                    "parameters": to_gemini_schema(func["parameters"])
                 })
 
             # Create model instance with system prompt and tools
@@ -106,10 +130,9 @@ Tool Execution Rules:
 
             # Add current user prompt (and optional visual input)
             current_parts = []
-            if image_path and os.path.exists(image_path):
+            if image_path and os.getenv("WANT_VISION_GEMINI") != "false" and os.path.exists(image_path):
                 try:
                     img = Image.open(image_path)
-                    # Convert to RGB if needed to avoid format issues
                     if img.mode not in ("RGB", "L"):
                         img = img.convert("RGB")
                     current_parts.append(img)
@@ -122,10 +145,9 @@ Tool Execution Rules:
                 "parts": current_parts
             })
 
-            # Call the Gemini API (run in execution executor to prevent blocking async loop)
+            # Call the Gemini API (run in executor to prevent blocking async loop)
             import asyncio
             loop = asyncio.get_event_loop()
-            
             response: GenerateContentResponse = await loop.run_in_executor(
                 None,
                 lambda: model.generate_content(contents)
@@ -140,10 +162,7 @@ Tool Execution Rules:
                 for part in response.candidates[0].content.parts:
                     if part.function_call:
                         call = part.function_call
-                        # Convert Map/Struct arguments to standard dict
-                        args = {}
-                        for k, v in call.args.items():
-                            args[k] = v
+                        args = {k: v for k, v in call.args.items()}
                         tool_calls.append({
                             "name": call.name,
                             "args": args
@@ -153,3 +172,76 @@ Tool Execution Rules:
 
         except Exception as e:
             return f"Error connecting to LLM Brain: {str(e)}", []
+
+    async def _generate_ollama_response(
+        self,
+        prompt: str,
+        history: List[Dict[str, str]],
+        tool_definitions: List[Dict[str, Any]],
+        image_path: Optional[str] = None
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """Runs the query against a local Ollama instance utilizing its native chat API."""
+        try:
+            # Format system prompt
+            messages = [{"role": "system", "content": self.get_system_instruction()}]
+            
+            # Add dialogue history
+            for msg in history:
+                messages.append({"role": msg["role"], "content": msg["content"]})
+                
+            # Current prompt
+            current_message = {"role": "user", "content": prompt}
+            
+            # If image is attached, encode it for local model
+            if image_path and os.path.exists(image_path):
+                try:
+                    with open(image_path, "rb") as image_file:
+                        encoded = base64.b64encode(image_file.read()).decode('utf-8')
+                        current_message["images"] = [encoded]
+                except Exception as img_err:
+                    print(f"Error encoding local image for Ollama: {str(img_err)}")
+                    
+            messages.append(current_message)
+            
+            payload = {
+                "model": self.ollama_model,
+                "messages": messages,
+                "stream": False
+            }
+            if tool_definitions:
+                payload["tools"] = tool_definitions
+                
+            async with httpx.AsyncClient(trust_env=False, timeout=None) as client:
+                response = await client.post(
+                    f"{self.ollama_url}/api/chat",
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                
+            if response.status_code != 200:
+                return f"Error: Local Ollama service returned HTTP {response.status_code}. Make sure Ollama is running and model '{self.ollama_model}' is pulled.", []
+                
+            data = response.json()
+            message_data = data.get("message", {})
+            reply = message_data.get("content", "") or ""
+            tool_calls = []
+            
+            # Parse Ollama's tool calls
+            raw_calls = message_data.get("tool_calls", [])
+            for call in raw_calls:
+                func = call.get("function", {})
+                args = func.get("arguments", {})
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except Exception:
+                        args = {}
+                tool_calls.append({
+                    "name": func.get("name"),
+                    "args": args
+                })
+                
+            return reply, tool_calls
+            
+        except Exception as e:
+            return f"Error connecting to local Ollama service: {repr(e)}. Please check if Ollama is running at {self.ollama_url}.", []

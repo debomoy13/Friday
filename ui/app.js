@@ -47,6 +47,10 @@ const settingsApiKey = document.getElementById("settings-api-key");
 const settingsUserName = document.getElementById("settings-user-name");
 const settingsAssistantName = document.getElementById("settings-assistant-name");
 const settingsSafetyLevel = document.getElementById("settings-safety-level");
+const settingsProvider = document.getElementById("settings-provider");
+const ollamaSettingsGroup = document.getElementById("ollama-settings-group");
+const settingsOllamaUrl = document.getElementById("settings-ollama-url");
+const settingsOllamaModel = document.getElementById("settings-ollama-model");
 
 const safetyModal = document.getElementById("safety-modal");
 const safetyToolName = document.getElementById("safety-tool-name");
@@ -118,6 +122,16 @@ function handleServerMessage(data) {
 
             if (data.preferences.api_key) {
                 settingsApiKey.value = data.preferences.api_key;
+            }
+            if (data.preferences.provider) {
+                settingsProvider.value = data.preferences.provider;
+                toggleOllamaSettingsGroup(data.preferences.provider);
+            }
+            if (data.preferences.ollama_url) {
+                settingsOllamaUrl.value = data.preferences.ollama_url;
+            }
+            if (data.preferences.ollama_model) {
+                settingsOllamaModel.value = data.preferences.ollama_model;
             }
 
             logToConsole("Memory", `Preferences loaded. Welcome back, ${userName}.`, "info");
@@ -622,6 +636,11 @@ function setupEventListeners() {
         if (e.target === settingsModal) settingsModal.style.display = "none";
     });
 
+    // Provider toggle listener
+    settingsProvider.addEventListener("change", (e) => {
+        toggleOllamaSettingsGroup(e.target.value);
+    });
+
     // Apply configuration settings
     saveSettingsBtn.addEventListener("click", () => {
         if (socket && socket.readyState === WebSocket.OPEN) {
@@ -630,7 +649,10 @@ function setupEventListeners() {
                 api_key: settingsApiKey.value.trim(),
                 user_name: settingsUserName.value.trim(),
                 assistant_name: settingsAssistantName.value.trim(),
-                safety_level: settingsSafetyLevel.value
+                safety_level: settingsSafetyLevel.value,
+                provider: settingsProvider.value,
+                ollama_url: settingsOllamaUrl.value.trim() || "http://127.0.0.1:11434",
+                ollama_model: settingsOllamaModel.value.trim() || "qwen3.6"
             }));
         }
     });
@@ -661,15 +683,23 @@ function setupEventListeners() {
 function handleSendMessage() {
     const text = commandInput.value.trim();
     if (!text) return;
-
+    
     appendMessage("user", text);
-
+    
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
             type: "user_message",
             content: text
         }));
     }
-
+    
     commandInput.value = "";
+}
+
+function toggleOllamaSettingsGroup(provider) {
+    if (provider === "ollama") {
+        ollamaSettingsGroup.style.display = "block";
+    } else {
+        ollamaSettingsGroup.style.display = "none";
+    }
 }

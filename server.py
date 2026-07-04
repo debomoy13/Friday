@@ -89,6 +89,22 @@ async def websocket_endpoint(websocket: WebSocket):
         safety_level = orchestrator.memory.get_preference("safety_level", os.getenv("SAFETY_LEVEL", "medium"))
         orchestrator.safety.set_safety_level(safety_level)
         
+        # Sync orchestrator settings from database values
+        provider = orchestrator.memory.get_preference("provider", "gemini")
+        ollama_url = orchestrator.memory.get_preference("ollama_url", "http://127.0.0.1:11434")
+        ollama_model = orchestrator.memory.get_preference("ollama_model", "qwen3.6")
+        api_key = orchestrator.memory.get_preference("api_key", os.getenv("GEMINI_API_KEY", ""))
+        
+        orchestrator.update_settings(
+            api_key=api_key,
+            user_name=orchestrator.brain.user_name,
+            assistant_name=orchestrator.brain.assistant_name,
+            safety_level=safety_level,
+            provider=provider,
+            ollama_url=ollama_url,
+            ollama_model=ollama_model
+        )
+        
         await manager.send_json({
             "type": "init",
             "preferences": prefs,
@@ -145,15 +161,29 @@ async def websocket_endpoint(websocket: WebSocket):
                 user_name = message.get("user_name", "Sir")
                 assistant_name = message.get("assistant_name", "Friday")
                 safety_level = message.get("safety_level", "medium")
+                provider = message.get("provider", "gemini")
+                ollama_url = message.get("ollama_url", "http://127.0.0.1:11434")
+                ollama_model = message.get("ollama_model", "qwen3.6")
                 
-                orchestrator.update_settings(api_key, user_name, assistant_name, safety_level)
+                orchestrator.update_settings(
+                    api_key=api_key, 
+                    user_name=user_name, 
+                    assistant_name=assistant_name, 
+                    safety_level=safety_level,
+                    provider=provider,
+                    ollama_url=ollama_url,
+                    ollama_model=ollama_model
+                )
                 
                 await manager.send_json({
                     "type": "settings_updated",
                     "preferences": {
                         "user_name": user_name,
                         "assistant_name": assistant_name,
-                        "safety_level": safety_level
+                        "safety_level": safety_level,
+                        "provider": provider,
+                        "ollama_url": ollama_url,
+                        "ollama_model": ollama_model
                     },
                     "has_api_key": bool(orchestrator.brain.api_key)
                 }, websocket)

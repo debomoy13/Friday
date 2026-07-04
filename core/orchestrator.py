@@ -17,15 +17,26 @@ class FridayOrchestrator:
     def __init__(self, session_id: str = "default_session"):
         self.session_id = session_id
         
-        # Load environment variables
-        user_name = os.getenv("USER_NAME", "Sir")
-        assistant_name = os.getenv("ASSISTANT_NAME", "Friday")
-        safety_level = os.getenv("SAFETY_LEVEL", "medium")
-        api_key = os.getenv("GEMINI_API_KEY", "")
-
         # Core systems initialization
         self.memory = MemoryManager()
-        self.brain = LLMBrain(api_key=api_key, user_name=user_name, assistant_name=assistant_name)
+        
+        # Load database preferences, fallback to env/defaults
+        user_name = self.memory.get_preference("user_name", os.getenv("USER_NAME", "Sir"))
+        assistant_name = self.memory.get_preference("assistant_name", os.getenv("ASSISTANT_NAME", "Friday"))
+        safety_level = self.memory.get_preference("safety_level", os.getenv("SAFETY_LEVEL", "medium"))
+        api_key = self.memory.get_preference("api_key", os.getenv("GEMINI_API_KEY", ""))
+        provider = self.memory.get_preference("provider", "gemini")
+        ollama_url = self.memory.get_preference("ollama_url", "http://127.0.0.1:11434")
+        ollama_model = self.memory.get_preference("ollama_model", "qwen3.6")
+
+        self.brain = LLMBrain(
+            api_key=api_key, 
+            user_name=user_name, 
+            assistant_name=assistant_name,
+            provider=provider,
+            ollama_url=ollama_url,
+            ollama_model=ollama_model
+        )
         self.router = ToolRouter()
         self.safety = SafetyGuard(safety_level=safety_level)
         self.scheduler = Scheduler()
@@ -64,15 +75,19 @@ class FridayOrchestrator:
         if self.ui_sender:
             await self.ui_sender(event_data)
 
-    def update_settings(self, api_key: str, user_name: str, assistant_name: str, safety_level: str):
+    def update_settings(self, api_key: str, user_name: str, assistant_name: str, safety_level: str, provider: str = "gemini", ollama_url: str = "http://127.0.0.1:11434", ollama_model: str = "qwen3.6"):
         """Applies changes made in the dashboard settings panel."""
-        self.brain.update_config(api_key, user_name, assistant_name)
+        self.brain.update_config(api_key, user_name, assistant_name, provider, ollama_url, ollama_model)
         self.safety.set_safety_level(safety_level)
         
         # Save to database preferences as well
+        self.memory.set_preference("api_key", api_key)
         self.memory.set_preference("user_name", user_name)
         self.memory.set_preference("assistant_name", assistant_name)
         self.memory.set_preference("safety_level", safety_level)
+        self.memory.set_preference("provider", provider)
+        self.memory.set_preference("ollama_url", ollama_url)
+        self.memory.set_preference("ollama_model", ollama_model)
 
     async def process_user_input(
         self, 
