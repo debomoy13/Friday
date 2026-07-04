@@ -78,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function connectWebSocket() {
     const wsUrl = `ws://${window.location.hostname}:${window.location.port || '8000'}/ws`;
     logToConsole("System", "Establishing socket uplink...", "info");
-    
+
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -111,17 +111,17 @@ function handleServerMessage(data) {
             userName = data.preferences.user_name || "Sir";
             assistantName = data.preferences.assistant_name || "Friday";
             safetyLevel = data.safety_level || "medium";
-            
+
             settingsUserName.value = userName;
             settingsAssistantName.value = assistantName;
             settingsSafetyLevel.value = safetyLevel;
-            
+
             if (data.preferences.api_key) {
                 settingsApiKey.value = data.preferences.api_key;
             }
-            
+
             logToConsole("Memory", `Preferences loaded. Welcome back, ${userName}.`, "info");
-            
+
             // Render conversation history
             if (data.history && data.history.length > 0) {
                 chatMessages.innerHTML = "";
@@ -181,7 +181,7 @@ function handleServerMessage(data) {
             appendMessage("assistant", `[Proactive Alert]: ${data.message}`);
             speakText(data.message);
             break;
-            
+
         case "stats_update":
             // Periodically sent from scheduler if active
             updateDiagnostics(data.cpu, data.memory, data.battery);
@@ -196,11 +196,11 @@ function handleServerMessage(data) {
 function appendMessage(role, content) {
     const msgDiv = document.createElement("div");
     msgDiv.classList.add("message", role);
-    
+
     const bubble = document.createElement("div");
     bubble.classList.add("msg-bubble");
     bubble.innerText = content;
-    
+
     msgDiv.appendChild(bubble);
     chatMessages.appendChild(msgDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -219,10 +219,10 @@ function hideProgressOverlay() {
 function logToConsole(module, message, type = "info") {
     const line = document.createElement("div");
     line.classList.add("log-line", type);
-    
+
     const timestamp = new Date().toLocaleTimeString();
     line.innerText = `[${timestamp}] [${module}] ${message}`;
-    
+
     systemLogs.appendChild(line);
     systemLogs.scrollTop = systemLogs.scrollHeight;
 }
@@ -231,10 +231,10 @@ function logToConsole(module, message, type = "info") {
 function updateDiagnostics(cpu, mem, battery) {
     cpuBar.style.width = `${cpu}%`;
     cpuVal.innerText = `${cpu}%`;
-    
+
     memBar.style.width = `${mem}%`;
     memVal.innerText = `${mem}%`;
-    
+
     if (battery !== null) {
         batBar.style.width = `${battery}%`;
         batVal.innerText = `${battery}%`;
@@ -303,16 +303,16 @@ function initSpeechRecognition() {
     recognition.onresult = (event) => {
         const lastResultIndex = event.resultIndex;
         const transcript = event.results[lastResultIndex][0].transcript.trim().toLowerCase();
-        
+
         console.log("Heard phrase:", transcript);
-        
+
         // 1. Wake word matching
         const wakeWord = assistantName.toLowerCase();
         if (transcript.includes(wakeWord)) {
             // Find index of wake word to parse command immediately following it
             const index = transcript.indexOf(wakeWord);
             const command = transcript.substring(index + wakeWord.length).trim();
-            
+
             triggerFridayActivation(command);
         } else if (activeListeningMode) {
             // If already activated and waiting for follow-up phrase
@@ -327,7 +327,7 @@ function initSpeechRecognition() {
 function triggerFridayActivation(command) {
     activeListeningMode = false;
     spokenText.style.display = "block";
-    
+
     if (command && command.length > 2) {
         // Speak chime or immediate ACK
         spokenText.innerText = `"${command}"`;
@@ -348,9 +348,9 @@ function sendVerbalCommand(text) {
         logToConsole("System", "Cannot execute: disconnected from server.", "error");
         return;
     }
-    
+
     appendMessage("user", text);
-    
+
     // Check if webcam is running and extract base64 capture
     let base64Image = null;
     if (webcamVideo.srcObject) {
@@ -364,7 +364,7 @@ function sendVerbalCommand(text) {
             console.error("Failed to capture webcam frame:", err);
         }
     }
-    
+
     socket.send(JSON.stringify({
         type: "user_message",
         content: text,
@@ -385,35 +385,35 @@ function initSpeechSynthesis() {
 
 function speakText(text) {
     if (!synth) return;
-    
+
     // Stop continuous STT listening while Friday is speaking to avoid self-listening loop
     if (recognition && isListening) {
         autoRestartSpeech = false;
         recognition.stop();
     }
-    
+
     // Cancel active speech
     synth.cancel();
-    
+
     // Remove markdown symbols (bold, italic, list markers) for cleaner pronunciation
     const cleanText = text.replace(/[*_`#\-]/g, "").replace(/\n/g, ". ");
-    
+
     currentUtterance = new SpeechSynthesisUtterance(cleanText);
     isSpeaking = true;
-    
+
     // Try to find a nice British/standard female voice to match Friday's cinematic persona
     const voices = synth.getVoices();
-    const preferredVoice = voices.find(voice => 
-        voice.lang.includes("en-GB") || 
-        voice.name.includes("Google US English") || 
+    const preferredVoice = voices.find(voice =>
+        voice.lang.includes("en-GB") ||
+        voice.name.includes("Google US English") ||
         voice.name.includes("Zira")
     );
     if (preferredVoice) {
         currentUtterance.voice = preferredVoice;
     }
-    
+
     currentUtterance.rate = 1.05; // Slightly faster pacing
-    
+
     currentUtterance.onend = () => {
         isSpeaking = false;
         spokenText.style.display = "none";
@@ -431,13 +431,13 @@ function speakText(text) {
             recognition.start();
         }
     };
-    
+
     synth.speak(currentUtterance);
 }
 
 // Ensure voices are loaded (Chrome loads asynchronously)
 if (window.speechSynthesis) {
-    window.speechSynthesis.onvoiceschanged = () => {};
+    window.speechSynthesis.onvoiceschanged = () => { };
 }
 
 // --- WEBCAM VIDEO STREAM ---
@@ -473,19 +473,19 @@ function showSafetyApproval(requestId, toolName, args) {
     currentRequestId = requestId;
     safetyToolName.innerText = toolName;
     safetyToolArgs.innerText = JSON.stringify(args, null, 2);
-    
+
     if (toolName === "execute_terminal_command") {
         safetyToolArgs.classList.add("code-block");
     } else {
         safetyToolArgs.classList.remove("code-block");
     }
-    
+
     safetyModal.style.display = "flex";
 }
 
 function handleSafetyResponse(approved) {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
-    
+
     if (approved) {
         socket.send(JSON.stringify({
             type: "approve_action",
@@ -499,7 +499,7 @@ function handleSafetyResponse(approved) {
         }));
         logToConsole("Safety", "User denied action execution token.", "error");
     }
-    
+
     safetyModal.style.display = "none";
     currentRequestId = null;
 }
@@ -515,15 +515,15 @@ function initCanvas() {
 
 function animateWaveform() {
     ctx.clearRect(0, 0, 360, 120);
-    
+
     const time = Date.now() * 0.004;
     ctx.lineWidth = 1.5;
-    
+
     // Choose wave properties based on Friday's state
     let amplitude = 8;
     let frequency = 0.03;
     let waveCount = 3;
-    
+
     if (isSpeaking) {
         amplitude = 25;
         frequency = 0.06;
@@ -538,11 +538,11 @@ function animateWaveform() {
         frequency = 0.02;
         waveCount = 2;
     }
-    
+
     for (let i = 0; i < waveCount; i++) {
         ctx.beginPath();
         const grad = ctx.createLinearGradient(0, 0, 360, 0);
-        
+
         // Stagger colors for futuristic holographic overlaps
         if (i % 3 === 0) {
             grad.addColorStop(0, 'rgba(0, 240, 255, 0)');
@@ -557,12 +557,12 @@ function animateWaveform() {
             grad.addColorStop(0.5, 'rgba(171, 37, 255, 0.25)');
             grad.addColorStop(1, 'rgba(171, 37, 255, 0)');
         }
-        
+
         ctx.strokeStyle = grad;
-        
+
         const phase = time + (i * 0.9);
         const ampStagger = amplitude * (1 - (i * 0.15));
-        
+
         for (let x = 0; x < 360; x++) {
             // Math.sin compound equations for organic ripples
             const y = 60 + Math.sin(x * frequency + phase) * Math.cos(x * 0.005 + phase * 0.5) * ampStagger;
@@ -574,7 +574,7 @@ function animateWaveform() {
         }
         ctx.stroke();
     }
-    
+
     animationFrameId = requestAnimationFrame(animateWaveform);
 }
 
@@ -661,15 +661,15 @@ function setupEventListeners() {
 function handleSendMessage() {
     const text = commandInput.value.trim();
     if (!text) return;
-    
+
     appendMessage("user", text);
-    
+
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({
             type: "user_message",
             content: text
         }));
     }
-    
+
     commandInput.value = "";
 }
