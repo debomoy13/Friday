@@ -1,3 +1,4 @@
+from config import config
 import os
 import shutil
 import random
