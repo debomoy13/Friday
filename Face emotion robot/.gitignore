@@ -55,16 +55,16 @@ ENV/
 !.gitkeep
 
 # Models and weights
-*.pth
-*.pt
-*.h5
-*.hdf5
-*.onnx
-*.bin
-*.pkl
-*.tflite
-!**/.gitkeep
+models/*.pth
+models/*.pt
+models/*.h5
+models/*.hdf5
+models/*.onnx
+models/*.bin
+models/*.pkl
+models/*.tflite
+!models/.gitkeep
 
 # Logs and outputs
-*.log
-!**/.gitkeep
+outputs/*.log
+!outputs/.gitkeep
