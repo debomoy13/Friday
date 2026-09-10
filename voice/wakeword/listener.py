@@ -18,6 +18,11 @@ import numpy as np
 from openwakeword.model import Model
 import argparse
 
+if __name__=="__main__":
+
+    def jarvis_awake():
+        print("Hey Debomomy whats up")
+
 # Parse input arguments
 parser=argparse.ArgumentParser()
 parser.add_argument(
@@ -90,7 +95,13 @@ if __name__ == "__main__":
 
             output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= 0.5 else "Wakeword Detected!"}
             """
+        for mdl in owwModel.prediction_buffer.keys():
+            scores=list(owwModel.prediction_buffer[mdl])
+            if scores[-1]>0.5:
+                jarvis_awake()
+
 
         # Print results table
         print("\033[F"*(4*n_models+1))
         print(output_string_header, "                             ", end='\r')
+
