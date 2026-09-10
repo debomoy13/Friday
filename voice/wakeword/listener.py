@@ -13,95 +13,118 @@
 # limitations under the License.
 # This file is copied from wakeword repo.
 # Imports
-import pyaudio
-import numpy as np
-from openwakeword.model import Model
 import argparse
+import numpy as np
+import pyaudio
+from openwakeword.model import Model
+import openwakeword.utils
 
-if __name__=="__main__":
 
-    def jarvis_awake():
-        print("Hey Debomomy whats up")
+def jarvis_awake():
+    print("\nHey Debomoy whats up")
 
-# Parse input arguments
-parser=argparse.ArgumentParser()
-parser.add_argument(
-    "--chunk_size",
-    help="How much audio (in number of samples) to predict on at once",
-    type=int,
-    default=1280,
-    required=False
-)
-parser.add_argument(
-    "--model_path",
-    help="The path of a specific model to load",
-    type=str,
-    default="",
-    required=False
-)
-parser.add_argument(
-    "--inference_framework",
-    help="The inference framework to use (either 'onnx' or 'tflite'",
-    type=str,
-    default='tflite',
-    required=False
-)
 
-args=parser.parse_args()
+def main():
+    # Parse input arguments
+    parser = argparse.ArgumentParser(description="Wake word listener using openWakeWord")
+    parser.add_argument(
+        "--chunk_size",
+        help="How much audio (in number of samples) to predict on at once",
+        type=int,
+        default=1280,
+        required=False,
+    )
+    parser.add_argument(
+        "--model_path",
+        help="The path of a specific model to load",
+        type=str,
+        default="",
+        required=False,
+    )
+    parser.add_argument(
+        "--inference_framework",
+        help="The inference framework to use (either 'onnx' or 'tflite')",
+        type=str,
+        default="onnx",
+        required=False,
+    )
 
-# Get microphone stream
-FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 16000
-CHUNK = args.chunk_size
-audio = pyaudio.PyAudio()
-mic_stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+    args = parser.parse_args()
 
-# Load pre-trained openwakeword models
-if args.model_path != "":
-    owwModel = Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework)
-else:
-    owwModel = Model(inference_framework=args.inference_framework)
+    # Load pre-trained openwakeword models
+    if args.model_path != "":
+        owwModel = Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework)
+    else:
+        try:
+            owwModel = Model(inference_framework=args.inference_framework)
+        except Exception:
+            print("Downloading missing openWakeWord default models...")
+            openwakeword.utils.download_models()
+            owwModel = Model(inference_framework=args.inference_framework)
 
-n_models = len(owwModel.models.keys())
+    n_models = len(owwModel.models.keys())
 
-# Run capture loop continuosly, checking for wakewords
-if __name__ == "__main__":
+    # Get microphone stream
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 16000
+    CHUNK = args.chunk_size
+    audio_interface = pyaudio.PyAudio()
+    mic_stream = audio_interface.open(
+        format=FORMAT,
+        channels=CHANNELS,
+        rate=RATE,
+        input=True,
+        frames_per_buffer=CHUNK,
+    )
+
+    # Run capture loop continuously, checking for wakewords
     # Generate output string header
     print("\n\n")
-    print("#"*100)
+    print("#" * 100)
     print("Listening for wakewords...")
-    print("#"*100)
-    print("\n"*(n_models*3))
+    print("#" * 100)
+    print("\n" * (n_models * 3))
 
-    while True:
-        # Get audio
-        audio = np.frombuffer(mic_stream.read(CHUNK), dtype=np.int16)
+    try:
+        while True:
+            # Get audio
+            raw_audio = mic_stream.read(CHUNK, exception_on_overflow=False)
+            audio_data = np.frombuffer(raw_audio, dtype=np.int16)
 
-        # Feed to openWakeWord model
-        prediction = owwModel.predict(audio)
+            # Feed to openWakeWord model
+            owwModel.predict(audio_data)
 
-        # Column titles
-        n_spaces = 16
-        output_string_header = """
+            # Column titles
+            n_spaces = 16
+            output_string_header = """
             Model Name         | Score | Wakeword Status
             --------------------------------------
             """
 
-        for mdl in owwModel.prediction_buffer.keys():
-            # Add scores in formatted table
-            scores = list(owwModel.prediction_buffer[mdl])
-            curr_score = format(scores[-1], '.20f').replace("-", "")
+            for mdl in owwModel.prediction_buffer.keys():
+                # Add scores in formatted table
+                scores = list(owwModel.prediction_buffer[mdl])
+                curr_score = format(scores[-1], ".20f").replace("-", "")
 
-            output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= 0.5 else "Wakeword Detected!"}
+                output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= 0.5 else "Wakeword Detected!"}
             """
-        for mdl in owwModel.prediction_buffer.keys():
-            scores=list(owwModel.prediction_buffer[mdl])
-            if scores[-1]>0.5:
-                jarvis_awake()
+            for mdl in owwModel.prediction_buffer.keys():
+                scores = list(owwModel.prediction_buffer[mdl])
+                if scores[-1] > 0.5:
+                    jarvis_awake()
+
+            # Print results table
+            print("\033[F" * (4 * n_models + 1))
+            print(output_string_header, "                             ", end="\r")
+    except KeyboardInterrupt:
+        print("\nStopping listener...")
+    finally:
+        mic_stream.stop_stream()
+        mic_stream.close()
+        audio_interface.terminate()
 
 
-        # Print results table
-        print("\033[F"*(4*n_models+1))
-        print(output_string_header, "                             ", end='\r')
+if __name__ == "__main__":
+    main()
 
