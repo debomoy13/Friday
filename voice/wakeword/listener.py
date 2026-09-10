@@ -21,12 +21,26 @@ import openwakeword.utils
 
 
 def jarvis_awake():
-    print("\nHey Debomoy whats up")
+    print("\nHey Debomoy, what's up!")
 
 
 def main():
     # Parse input arguments
     parser = argparse.ArgumentParser(description="Wake word listener using openWakeWord")
+    parser.add_argument(
+        "--wakeword",
+        help="The specific wake word model to detect (default: 'hey_jarvis', use 'all' for all models)",
+        type=str,
+        default="hey_jarvis",
+        required=False,
+    )
+    parser.add_argument(
+        "--threshold",
+        help="Confidence score threshold for wake word detection (0.0 to 1.0)",
+        type=float,
+        default=0.5,
+        required=False,
+    )
     parser.add_argument(
         "--chunk_size",
         help="How much audio (in number of samples) to predict on at once",
@@ -36,7 +50,7 @@ def main():
     )
     parser.add_argument(
         "--model_path",
-        help="The path of a specific model to load",
+        help="The path of a specific custom model file to load",
         type=str,
         default="",
         required=False,
@@ -51,18 +65,24 @@ def main():
 
     args = parser.parse_args()
 
-    # Load pre-trained openwakeword models
-    if args.model_path != "":
-        owwModel = Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework)
-    else:
-        try:
-            owwModel = Model(inference_framework=args.inference_framework)
-        except Exception:
-            print("Downloading missing openWakeWord default models...")
-            openwakeword.utils.download_models()
-            owwModel = Model(inference_framework=args.inference_framework)
+    # Determine which model(s) to load
+    def load_model():
+        if args.model_path != "":
+            return Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework)
+        elif args.wakeword.lower() == "all":
+            return Model(inference_framework=args.inference_framework)
+        else:
+            return Model(wakeword_models=[args.wakeword], inference_framework=args.inference_framework)
+
+    try:
+        owwModel = load_model()
+    except Exception:
+        print("Downloading missing openWakeWord default models...")
+        openwakeword.utils.download_models()
+        owwModel = load_model()
 
     n_models = len(owwModel.models.keys())
+    active_models = list(owwModel.models.keys())
 
     # Get microphone stream
     FORMAT = pyaudio.paInt16
@@ -82,7 +102,7 @@ def main():
     # Generate output string header
     print("\n\n")
     print("#" * 100)
-    print("Listening for wakewords...")
+    print(f"Listening for wakeword: {', '.join(active_models)} (threshold={args.threshold})...")
     print("#" * 100)
     print("\n" * (n_models * 3))
 
@@ -102,21 +122,26 @@ def main():
             --------------------------------------
             """
 
+            wakeword_triggered = False
             for mdl in owwModel.prediction_buffer.keys():
                 # Add scores in formatted table
                 scores = list(owwModel.prediction_buffer[mdl])
                 curr_score = format(scores[-1], ".20f").replace("-", "")
+                is_detected = scores[-1] > args.threshold
 
-                output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= 0.5 else "Wakeword Detected!"}
+                output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"Wakeword Detected!" if is_detected else "--"+" "*20}
             """
-            for mdl in owwModel.prediction_buffer.keys():
-                scores = list(owwModel.prediction_buffer[mdl])
-                if scores[-1] > 0.5:
-                    jarvis_awake()
+                if is_detected:
+                    wakeword_triggered = True
 
             # Print results table
             print("\033[F" * (4 * n_models + 1))
             print(output_string_header, "                             ", end="\r")
+
+            if wakeword_triggered:
+                jarvis_awake()
+                owwModel.reset()
+
     except KeyboardInterrupt:
         print("\nStopping listener...")
     finally:
